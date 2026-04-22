@@ -131,6 +131,48 @@ def extract_answers(request):
         # For each selected choice, check if it is a correct answer or not
         # Calculate the total score
 #def show_exam_result(request, course_id, submission_id):
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    user = request.user
+    # Get the enrollment for this user and course
+    enrollment = Enrollment.objects.get(user=user, course=course)
+    # Create a new submission
+    submission = Submission.objects.create(enrollment=enrollment)
+    
+    # Extract choices from the POST request
+    # (Assuming you either have extract_answers defined, or you extract directly like below)
+    if request.method == 'POST':
+        for key, value in request.POST.items():
+            if key.startswith('choice_'):
+                choice_id = value
+                choice = Choice.objects.get(id=choice_id)
+                submission.choices.add(choice)
+                
+    submission_id = submission.id
+    return HttpResponseRedirect(reverse('onlinecourse:exam_result', args=(course_id, submission_id,)))
 
+
+def show_exam_result(request, course_id, submission_id):
+    context = {}
+    course = get_object_or_404(Course, pk=course_id)
+    submission = Submission.objects.get(id=submission_id)
+    choices = submission.choices.all()
+
+    total_score = 0
+    questions = course.question_set.all()
+
+    for question in questions:
+        correct_choices = question.choice_set.filter(is_correct=True)
+        selected_choices = choices.filter(question=question)
+
+        # Check if the selected choices are exactly the correct choices
+        if set(correct_choices) == set(selected_choices):
+            total_score += question.grade
+
+    context['course'] = course
+    context['grade'] = total_score
+    context['choices'] = choices
+
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
 
 
